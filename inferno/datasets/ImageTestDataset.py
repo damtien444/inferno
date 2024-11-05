@@ -113,52 +113,52 @@ class TestData(Dataset):
         h, w, _ = image.shape
         if self.iscrop:
             # provide kpt as txt file, or mat file (for AFLW2000)
-            kpt_matpath = imagepath.replace('.jpg', '.mat').replace('.png', '.mat')
-            kpt_txtpath = imagepath.replace('.jpg', '.txt').replace('.png', '.txt')
-            if os.path.exists(kpt_matpath):
-                kpt = scipy.io.loadmat(kpt_matpath)['pt3d_68'].T
-                left = np.min(kpt[:, 0])
-                right = np.max(kpt[:, 0])
-                top = np.min(kpt[:, 1])
-                bottom = np.max(kpt[:, 1])
-                old_size, center = bbox2point(left, right, top, bottom, type='kpt68')
-            elif os.path.exists(kpt_txtpath):
-                kpt = np.loadtxt(kpt_txtpath)
-                left = np.min(kpt[:, 0])
-                right = np.max(kpt[:, 0])
-                top = np.min(kpt[:, 1])
-                bottom = np.max(kpt[:, 1])
-                old_size, center = bbox2point(left, right, top, bottom, type='kpt68')
-            else:
+            # kpt_matpath = imagepath.replace('.jpg', '.mat').replace('.png', '.mat')
+            # kpt_txtpath = imagepath.replace('.jpg', '.txt').replace('.png', '.txt')
+            # if os.path.exists(kpt_matpath):
+            #     kpt = scipy.io.loadmat(kpt_matpath)['pt3d_68'].T
+            #     left = np.min(kpt[:, 0])
+            #     right = np.max(kpt[:, 0])
+            #     top = np.min(kpt[:, 1])
+            #     bottom = np.max(kpt[:, 1])
+            #     old_size, center = bbox2point(left, right, top, bottom, type='kpt68')
+            # elif os.path.exists(kpt_txtpath):
+            #     kpt = np.loadtxt(kpt_txtpath)
+            #     left = np.min(kpt[:, 0])
+            #     right = np.max(kpt[:, 0])
+            #     top = np.min(kpt[:, 1])
+            #     bottom = np.max(kpt[:, 1])
+            #     old_size, center = bbox2point(left, right, top, bottom, type='kpt68')
+            # else:
                 # bbox, bbox_type, landmarks = self.face_detector.run(image)
-                bbox, bbox_type = self.face_detector.run(image)
-                if len(bbox) < 1:
-                    print('no face detected! run original image')
-                    left = 0
-                    right = h - 1
-                    top = 0
-                    bottom = w - 1
+            bbox, bbox_type = self.face_detector.run(image)
+            if len(bbox) < 1:
+                print('no face detected! run original image')
+                left = 0
+                right = h - 1
+                top = 0
+                bottom = w - 1
+                old_size, center = bbox2point(left, right, top, bottom, type=bbox_type)
+            else:
+                if self.max_detection is None:
+                    bbox = bbox[0]
+                    left = bbox[0]
+                    right = bbox[2]
+                    top = bbox[1]
+                    bottom = bbox[3]
                     old_size, center = bbox2point(left, right, top, bottom, type=bbox_type)
-                else:
-                    if self.max_detection is None:
-                        bbox = bbox[0]
-                        left = bbox[0]
-                        right = bbox[2]
-                        top = bbox[1]
-                        bottom = bbox[3]
-                        old_size, center = bbox2point(left, right, top, bottom, type=bbox_type)
-                    else: 
-                        old_size, center = [], []
-                        num_det = min(self.max_detection, len(bbox))
-                        for bbi in range(num_det):
-                            bb = bbox[0]
-                            left = bb[0]
-                            right = bb[2]
-                            top = bb[1]
-                            bottom = bb[3]
-                            osz, c = bbox2point(left, right, top, bottom, type=bbox_type)
-                        old_size += [osz]
-                        center += [c]
+                else: 
+                    old_size, center = [], []
+                    num_det = min(self.max_detection, len(bbox))
+                    for bbi in range(num_det):
+                        bb = bbox[0]
+                        left = bb[0]
+                        right = bb[2]
+                        top = bb[1]
+                        bottom = bb[3]
+                        osz, c = bbox2point(left, right, top, bottom, type=bbox_type)
+                    old_size += [osz]
+                    center += [c]
             
             if isinstance(old_size, list):
                 size = []
@@ -182,9 +182,13 @@ class TestData(Dataset):
             tform = estimate_transform('similarity', src_pts, DST_PTS)
             dst_image = warp(image, tform.inverse, output_shape=(self.resolution_inp, self.resolution_inp), order=3)
             dst_image = dst_image.transpose(2, 0, 1)
-            return {'image': torch.tensor(dst_image).float(),
-                    'image_name': imagename,
-                    'image_path': imagepath,
+            # image 3,224,224 ->   1,3,224,224
+            dst_image =  torch.tensor(dst_image).float()
+            dst_image = dst_image.unsqueeze(0)
+            # print("sinngle", dst_image.shape)
+            return {'image': dst_image,
+                    'image_name': [imagename],
+                    'image_path': [imagepath],
                     # 'tform': tform,
                     # 'original_image': torch.tensor(image.transpose(2,0,1)).float(),
                     }
@@ -200,7 +204,10 @@ class TestData(Dataset):
             
             imagenames = [imagename + f"{j:02d}" for j in range(dst_images.shape[0])]
             imagepaths = [imagepath]* dst_images.shape[0]
-            return {'image': torch.tensor(dst_images).float(),
+            
+            dst_images = torch.tensor(dst_images).float()
+            # print("list", dst_images.shape)
+            return {'image': dst_images,
                     'image_name': imagenames,
                     'image_path': imagepaths,
                     # 'tform': tform,

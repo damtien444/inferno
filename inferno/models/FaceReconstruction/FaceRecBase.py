@@ -59,7 +59,7 @@ from .Losses import (FanContourLandmarkLoss, LandmarkLoss,
                      PhotometricLoss, GaussianRegLoss, LightRegLoss)
 
 from inferno.utils.batch import dict_get, check_nan
-# import timeit
+import timeit
 
 
 def shape_model_from_cfg(cfg): 
@@ -349,30 +349,30 @@ class FaceReconstructionBase(LightningModule):
             raise ValueError("Batch must contain 'image' key")
         
         ## 0) "unring" the ring dimension if need be 
-        # time = timeit.default_timer()
+        time = timeit.default_timer()
         batch, ring_size = self.unring(batch)
-        # time_unring =  timeit.default_timer()
+        time_unring =  timeit.default_timer()
 
         ## 1) encode images 
         batch = self.encode(batch, training=training)
-        # time_encode =   timeit.default_timer()
+        time_encode =   timeit.default_timer()
 
         ## 3) exchange/disenanglement step (if any)
         batch = self.exchange(batch, ring_size, training=training, validation=validation, **kwargs)
-        # time_exchange =   timeit.default_timer()
+        time_exchange =   timeit.default_timer()
 
         ## 4) decode latents
         batch = self.decode(batch, training=training)
-        # time_decode =   timeit.default_timer()
+        time_decode =   timeit.default_timer()
         
         ## 5) render
         if render and self.renderer is not None:
             batch = self.render(batch, training=training)
-            # time_render =  timeit.default_timer()
+            time_render =  timeit.default_timer()
 
         ## 6) rering 
         batch = self.rering(batch, ring_size)
-        # time_rering =  timeit.default_timer()
+        time_rering =  timeit.default_timer()
 
         
         # print(f"Time unring:\t{time_unring - time:0.05f}")
@@ -382,7 +382,23 @@ class FaceReconstructionBase(LightningModule):
         # print(f"Time render:\t{time_render - time_decode:0.05f}")
         # print(f"Time rering:\t{time_rering - time_render:0.05f}")
         return batch
-
+    
+    def extract_latents(self, batch, training=True, validation=False, **kwargs):
+        batch, ring_size = self.unring(batch)
+        
+        batch = self.encode(batch, training=training)
+        
+        return batch, ring_size
+    
+    def decode_latents(self, batch, ring_size, training=True, validation=False, **kwargs):
+        batch = self.exchange(batch, ring_size, training=training, validation=validation, **kwargs)
+        
+        batch = self.decode(batch, training=training)
+        
+        batch = self.render(batch, training=training)
+        
+        return batch
+        
 
     def visualize_batch(self, batch, batch_idx, prefix, in_batch_idx=None):
         batch, ring_size = self.unring(batch)
